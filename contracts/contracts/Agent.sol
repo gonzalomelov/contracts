@@ -131,10 +131,6 @@ contract Agent {
             run.is_finished = true;
             return;
         }
-        if (run.responsesCount >= run.max_iterations) {
-            run.is_finished = true;
-            return;
-        }
         if (!compareStrings(response.content, "")) {
             IOracle.Message memory newMessage = createTextMessage("assistant", response.content);
             run.messages.push(newMessage);
@@ -144,7 +140,11 @@ contract Agent {
             IOracle(oracleAddress).createFunctionCall(runId, response.functionName, response.functionArguments);
             return;
         }
-        run.is_finished = true;
+        if (run.responsesCount >= run.max_iterations) {
+            run.is_finished = true;
+            return;
+        }
+        // run.is_finished = true;
     }
 
     // @notice Handles the response from the oracle for a function call
@@ -168,6 +168,22 @@ contract Agent {
         IOracle.Message memory newMessage =  createTextMessage("user", result);
         run.messages.push(newMessage);
         run.responsesCount++;
+        IOracle(oracleAddress).createOpenAiLlmCall(runId, config);
+    }
+
+    // @notice Adds a new message to an existing agent run
+    // @param message The new message to add
+    // @param runId The ID of the agent run
+    function addMessage(string memory message, uint runId) public {
+        AgentRun storage run = agentRuns[runId];
+        require(!run.is_finished, "Run is finished");
+        require(run.owner == msg.sender, "Only run owner can add messages");
+
+        IOracle.Message memory newMessage = createTextMessage("user", prompt);
+        run.messages.push(newMessage);
+        run.responsesCount++;
+
+        // Continue the agent run by making another OpenAI LLM call
         IOracle(oracleAddress).createOpenAiLlmCall(runId, config);
     }
 
